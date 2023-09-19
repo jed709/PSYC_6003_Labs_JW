@@ -13,7 +13,8 @@ library(psych)
  
 evenProd = function(x, y, z) {
   
-  # check if any arguments are odd numbers using remainders
+  # check if any arguments are odd numbers by 
+  # dividing arguments by 2 and comparing remainders to zero
   
   if(x %% 2 != 0 | 
      y %% 2 != 0 | 
@@ -46,6 +47,8 @@ evenProd(2, 6, 7)
 
 dat = read.csv('data/stroop_dat.csv')
 
+### Question 7
+
 # clean up stroop data
 
 dat %>%
@@ -63,14 +66,14 @@ dat %>%
   
   # recode condition column as factor, specify levels
   
-  mutate(condition = recode_factor(c, '1' = 'level_1', 
-                            '2' = 'level_2')) %>%
+  mutate(condition = recode_factor(c, '1' = 'congruent', 
+                            '2' = 'incongruent')) %>%
   
   # remove old condition column and save as new dataframe
   
   select(-c) -> dat2
 
-### Question 7
+### Question 8
 
 dat2 %>%
   
@@ -80,8 +83,252 @@ dat2 %>%
          
          # create new column wherein responses within time
          # window are coded with 1 and response outside
-         # are coded with 0; save as new dataframe
+         # are coded with 0
          
-         acc = as.numeric(!is.na(rt))) -> dat3
+         acc = as.numeric(!is.na(rt))) %>%
+  
+  # filter rows where acc is 0 and save as new dataframe
+  
+  filter(acc != 0) -> dat3
 
+### Question 9
 
+# write dat3 dataframe to rds file in data folder
+
+write_rds(dat3, 'data/dat3.rds')
+
+### Question 10
+
+dat3 %>%
+  
+  # group data by subject ID and condition
+  
+  group_by(subject, condition) %>%
+  
+  # produce columns containing the means for rt and log_rt,
+  # save as new dataframe
+  
+  summarise(rt_mean = mean(rt), log_mean = mean(log_rt)) -> sum_dat
+
+### Question 11
+
+# create histograms of RT and log RT means using base graphics
+
+hist(sum_dat$rt_mean)
+hist(sum_dat$log_mean)
+
+# do the same as above, but with ggplot
+
+# first, specify data and what to put on X axis
+
+ggplot(sum_dat, aes(x = rt_mean)) +
+  
+  # call ggplot's histogram function
+  
+  geom_histogram()
+
+# do this again for log RTs
+
+ggplot(sum_dat, aes(x = log_mean)) + 
+  geom_histogram()
+
+# those defaults are disgusting; i'll make the above look passable
+
+# raw RTs
+
+ggplot(sum_dat, aes(x = rt_mean)) +
+  
+  # specify number of bins, line width, and color palette
+  
+  geom_histogram(bins = 15,
+                 linewidth = 0.5,
+                 color = 'black', 
+                 fill = '#b86fd9') +
+  
+  # use classic theme to remove the ugly background
+  
+  theme_classic() +
+  
+  # stop the bins from floating
+  
+  scale_y_continuous(expand = c(0,0)) +
+  
+  # add more informative plot labels
+  
+  labs(title = 'Response Times', 
+       x = "Mean", 
+       y = "Count") +
+  
+  # center the title
+  
+  theme(plot.title = element_text(hjust = 0.5))
+
+# same as above but for log transformed RTs
+
+ggplot(sum_dat, aes(x = log_mean)) + 
+  geom_histogram(bins = 15,
+                 linewidth = 0.5,
+                 color = 'black', 
+                 fill = '#b86fd9') +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(title = 'Log-Transformed Response Times', 
+       x = "Mean", 
+       y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+### Question 12
+
+# filter only rows for congruent trials, save as new
+# data frame
+
+dat3 %>%
+  filter(condition == 'congruent') -> con_dat
+
+# filter only rows for incongruent trials, save as new
+# data frame
+
+dat3 %>%
+  filter(condition == 'incongruent') -> inc_dat
+
+# summarize the separate congruent and incongruent data frames
+# to look at trends in data
+
+summary(con_dat)
+summary(inc_dat)
+
+### Question 13
+
+# conduct ANOVA on mean raw RTs with condition as a within-subject
+# factor
+
+# specify data
+
+ezANOVA(sum_dat,
+        
+        # specify dependent variable
+        
+        dv = rt_mean,
+        
+        # specify subject ID column
+        
+        wid = subject,
+        
+        # specify within-subject factor
+        
+        within = condition,
+        
+        # specify detailed, just in case
+        
+        detailed = TRUE) -> rt_anova
+
+# mean, SD, N, and FLSD by condition for mean raw RTs
+
+ezStats(sum_dat, 
+        dv = rt_mean, 
+        wid = subject, 
+        within = condition) -> rt_stats
+
+# conduct ANOVA on mean log-transformed RTs with condition 
+# as a within-subject factor
+
+ezANOVA(sum_dat, 
+        dv = log_mean, 
+        wid = subject, 
+        within = condition, 
+        detailed = TRUE) -> log_rt_anova
+
+# mean, SD, N, and FLSD by condition for mean log-transformed rts
+
+ezStats(sum_dat, 
+        dv = log_mean, 
+        wid = subject, 
+        within = condition) -> log_rt_stats
+
+### Question 14
+
+# create plots for raw and log-transformed RTs as a
+# function of condition
+
+# raw mean RT plot
+
+# specify data and axes
+
+ggplot(rt_stats, aes(x = condition,
+                     y = Mean)) + 
+  
+  # call geom_col function because we don't want counts; this is more
+  # efficient than calling geom_bar
+  # also specify bin width and palette
+  
+  geom_col(width = 0.5,
+           color = 'black',
+           fill = '#b86fd9') +
+  
+  # add error bars using the SD calculated by ezStats
+  
+  geom_errorbar(aes(x = condition,
+                    
+                    # specify min (mean - sd) and max (mean + sd) of error
+                    # bars
+                    
+                    ymin = Mean - SD, 
+                    ymax = Mean + SD),
+                
+                # make the error bars a reasonable size
+                
+                width = 0.06,
+                
+                # position error bars
+                
+                position = position_dodge(0.8)) +
+  
+  # use classic theme to remove background
+  
+  theme_classic() +
+  
+  # stop columns from floating above X axis
+  
+  scale_y_continuous(expand = c(0,0),
+                     
+                     # set a very high limit on the Y axis 
+                     # in order to accommodate large SD error bars
+                     
+                     limits = c(0, 1200),
+                     
+                     # specify breaks to go with this limit
+                     
+                     breaks = seq(0, 1200, 200)) +
+  
+  # add title and axis labels
+  
+  labs(title = 'Mean Raw Response Times by Condition', 
+       x = 'Condition', 
+       y = 'Response Time') +
+  
+  # center the title
+  
+  theme(plot.title = element_text(hjust = 0.5))
+
+# log-transformed rt plot
+
+ggplot(log_rt_stats, aes(x = condition,
+                     y = Mean)) + 
+  geom_col(width = 0.5,
+           color = 'black',
+           fill = '#b86fd9') +
+  geom_errorbar(aes(x = condition, 
+                    ymin = Mean - SD, 
+                    ymax = Mean + SD), 
+                width = 0.06,
+                position = position_dodge(0.8)) +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0),
+                     limits = c(0, 10),
+                     breaks = seq(0, 10, 2)) +
+  labs(title = 'Mean Log-Transformed Response Times by Condition', 
+       x = 'Condition', 
+       y = 'Response Time') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+###
