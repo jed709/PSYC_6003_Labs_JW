@@ -1,92 +1,131 @@
+# load libraries
+
 library(tidyverse)
 library(BayesFactor)
 library(ez)
 library(bayestestR)
 
-# Q1
+# Question 1 --------------------------------------------------------------
 
-#me
+# calculate posteriors using my prior beliefs
+
+# probability of detecting a difference given that a difference exists
 
 p_TrueDiff <- 0.70
+
+# probability of detecting a difference given that no difference exists
+
 p_DiffFalse <- 0.05
+
+# my prior knowledge that a true difference has only a 1% chance of
+# existing
+
 p_True <- 0.01
+
+# the average probability of observing a difference 
+
 p_Diff <- (p_TrueDiff*p_True) + p_DiffFalse*(1-p_True)
+
+# using bayes theorem to calculate the probability that a difference exists
+# given that a difference was detected
 
 p_diffTrue <- (p_TrueDiff*p_True)/p_Diff
 
-p_TrueDiff <- 0.70
-p_DiffFalse <- 0.05
-p_True <- 0.01
-p_Diff <- (p_TrueDiff*p_True) + p_DiffFalse*(1-p_True)
+# Recalculating posteriors a second time for a second experiment
 
-p_diffTrue <- (p_TrueDiff*p_True)/p_Diff
-
-#E2
+# updating priors using the calculated posterior
 
 p_True <- p_diffTrue
+
+# recalculate probability of a difference and posterior
+
 p_Diff <- (p_TrueDiff*p_True) + p_DiffFalse*(1-p_True)
 
 p_diffTrue_e2 <- (p_TrueDiff*p_True)/p_Diff
 
-# colleague
+# calculating posterior for E1 using my colleague's priors
+
+# change prior
 
 p_True <- 0.95
+
+# calculate average probability of a difference existing
+
 p_Diff <- (p_TrueDiff*p_True) + p_DiffFalse*(1-p_True)
+
+# calculate posterior
 
 p_diffTrue <- (p_TrueDiff*p_True)/p_Diff
 
-# colleague e2
+# recalculate posterior using new prior calculated above
+
+# updating priors using the calculated posterior
 
 p_True <- p_diffTrue
+
+# recalculate probability of a difference and posterior
+
 p_Diff <- (p_TrueDiff*p_True) + p_DiffFalse*(1-p_True)
 
 p_diffTrue_e2 <- (p_TrueDiff*p_True)/p_Diff
 
-# Q2
+# Question 2 --------------------------------------------------------------
+
+# load data
 
 sleepDat = sleep
 
-#
+# paired two-tailed t.test for the effect of group on extra hours of sleep
 
 t.test(extra ~ group, data = sleepDat, 
        paired = TRUE)
 
-# 
+# equivalent bayesian paired t.test
 
 ttestBF(sleepDat[sleepDat$group == 1,]$extra, 
         sleepDat[sleepDat$group == 2,]$extra, 
         paired = TRUE)
 
-# Q3 and Q4
+# Question 3 --------------------------------------------------------------
+
+# load data
 
 toothDat = ToothGrowth
 
-# 
+# independent two-tailed t.test for the effect of supplement type on tooth length
 
-t.test(len ~ supp, data = toothDat, paired = TRUE)
+t.test(len ~ supp, data = toothDat, paired = F)
 
-#
-
-ttestBF(toothDat[toothDat$supp == 'VC',]$len, 
-        toothDat[toothDat$supp == 'OJ',]$len, 
-        paired = TRUE)
-
-#
-
-t.test(len ~ supp, data = toothDat, paired = TRUE, 
-       alternative = 'g')
-
-#
+# equivalent bayesian t.test
 
 ttestBF(toothDat[toothDat$supp == 'VC',]$len, 
         toothDat[toothDat$supp == 'OJ',]$len, 
-        paired = TRUE, nullInterval = c(-Inf, 0))
+        paired = F)
 
-# Q5 and Q6
+# Question 4 --------------------------------------------------------------
+
+# one-tailed t-test for the effect of supplement type on tooth length
+# assuming MDiff for OJ - VC is greater than 0
+
+t.test(len ~ supp, data = toothDat, paired = F, 
+       alternative = 'l')
+
+# equivalent one-tailed bayesian t.test
+
+ttestBF(toothDat[toothDat$supp == 'OJ',]$len, 
+        toothDat[toothDat$supp == 'VC',]$len, 
+        paired = F, nullInterval = c(-Inf, 0))
+
+# Question 5 --------------------------------------------------------------
+
+# create ID column and convert dose to factor
 
 toothDat %>%
   mutate(subnum = 1:nrow(toothDat),
-         dose = as.factor(toothDat$dose)) -> toothDat
+         dose = as.factor(dose)) -> toothDat
+
+# calculate ANOVA on tooth length using dose and supplement as between-subject
+# fixed factors
 
 ezANOVA(toothDat,
         len,
@@ -94,30 +133,59 @@ ezANOVA(toothDat,
         between = .(supp,dose),
         detailed = T) -> toothAOV
 
+# calculate comparable bayes factor ANOVA 
+
+set.seed(999)
+
 anovaBF(len ~ supp * dose,
+        whichRandom = 'subnum',
         data = toothDat) -> toothAOV_BF
+
+# interaction vs both effects
+
+7.645356e+14/2.758168e+14
+
+# supp vs both effects
+
+1.198757/2.758168e+14
+
+# dose vs both effects
+
+4.983636e+12/2.758168e+14
+
+# Question 6 --------------------------------------------------------------
+
+# calculate inclusion bayes factors using BF ANOVA on tooth dat
 
 bayesfactor_inclusion(toothAOV_BF)
 
-# Q7
+# Question 7 --------------------------------------------------------------
+
+# recalculate bayesian t-test for the effect of supplement on tooth length
+# using prior presets
+
+# medium
 
 ttestBF(toothDat[toothDat$supp == 'VC',]$len, 
         toothDat[toothDat$supp == 'OJ',]$len, 
-        paired = TRUE,
+        paired = F,
         rscale = 'medium')
 
+#wide
+
 ttestBF(toothDat[toothDat$supp == 'VC',]$len, 
         toothDat[toothDat$supp == 'OJ',]$len, 
-        paired = TRUE,
+        paired = F,
         rscale = 'wide')
 
+# ultra wide
+
 ttestBF(toothDat[toothDat$supp == 'VC',]$len, 
         toothDat[toothDat$supp == 'OJ',]$len, 
-        paired = TRUE,
+        paired = F,
         rscale = 'ultrawide')
 
-
-# Q8
+# Question 8 --------------------------------------------------------------
 
 # define function to calculate probability of observing a given number
 # of heads results in a given number of flips dependent on how likely
@@ -152,7 +220,7 @@ flips <- 10
 
 heads <- 7
 
-# 
+# avaerage probabilitity of the observation
 
 p_o <- coinFlips(flips,heads,h_f) * p_f +
   coinFlips(flips,heads,h_hb) * p_hb +
@@ -173,6 +241,29 @@ p_o <- coinFlips(flips,heads,h_f) * p_f +
 #tails biased
 
 (coinFlips(flips,heads,h_tb) * p_tb)/p_o
+
+# working through Q8 using slides method
+
+# define putcome of the coin flips
+
+f <- c(rep(0,3), rep(1,7))
+
+# define the coins' biases
+
+theta_vals <- c(0.8,0.2,0.5)
+
+# define the likelihood of picking each coin from the pile
+
+priors <- c(25/60, 25/60, 10/60)
+
+# calculate likelihood, evidence to standardize the posterior, and posterior
+# probabilities
+
+lik = dbinom(sum(f), length(f), theta_vals)
+
+marg = sum(priors * lik)
+
+post = (priors*lik)/marg
   
 # coin 2
 
@@ -197,6 +288,16 @@ p_o <- coinFlips(flips,heads,h_f) * p_f +
 
 (coinFlips(flips,heads,h_tb) * p_tb)/p_o
 
+# slides method
+
+f <- c(rep(0,4), rep(1,3))
+
+lik = dbinom(sum(f), length(f), theta_vals)
+
+marg = sum(priors * lik)
+
+post = (priors*lik)/marg
+
 # coin 3
 
 flips <- 5
@@ -219,6 +320,16 @@ p_o <- coinFlips(flips,heads,h_f) * p_f +
 #tails biased
 
 (coinFlips(flips,heads,h_tb) * p_tb)/p_o
+
+# slides method
+
+f <- c(rep(0,2), rep(1,3))
+
+lik = dbinom(sum(f), length(f), theta_vals)
+
+marg = sum(priors * lik)
+
+post = (priors*lik)/marg
 
 # coin 4 
   
@@ -243,7 +354,17 @@ p_o <- coinFlips(flips,heads,h_f) * p_f +
 
 (coinFlips(flips,heads,h_tb) * p_tb)/p_o
 
-### Q9
+# slides method
+
+f <- c(rep(0,0), rep(1,2))
+
+lik = dbinom(sum(f), length(f), theta_vals)
+
+marg = sum(priors * lik)
+
+post = (priors*lik)/marg
+
+# Question 9 --------------------------------------------------------------
 
 # probability of heads for each coin type
 
@@ -301,6 +422,20 @@ p_o <- coinFlips(flips,heads,h_f) * p_f +
 
 (coinFlips(flips,heads,h_sh) * p_sh)/p_o
 
+# working through Q9 using slides method
+
+f <- c(rep(0,3), rep(1,7))
+
+theta_vals <- c(0.8,0.2,0.5,1.0,0.6)
+
+priors <- c(25/110, 25/110, 10/110, 40/110, 10/110)
+
+lik = dbinom(sum(f), length(f), theta_vals)
+
+marg = sum(priors * lik)
+
+post = (priors*lik)/marg
+
 # coin 2
 
 # number of coin flips
@@ -340,6 +475,16 @@ p_o <- coinFlips(flips,heads,h_f) * p_f +
 # 60% heads
 
 (coinFlips(flips,heads,h_sh) * p_sh)/p_o
+
+# slides method
+
+f <- c(rep(0,4), rep(1,3))
+
+lik = dbinom(sum(f), length(f), theta_vals)
+
+marg = sum(priors * lik)
+
+post = (priors*lik)/marg
 
 # coin 3
 
@@ -381,6 +526,16 @@ p_o <- coinFlips(flips,heads,h_f) * p_f +
 
 (coinFlips(flips,heads,h_sh) * p_sh)/p_o
 
+# slides method
+
+f <- c(rep(0,2), rep(1,3))
+
+lik = dbinom(sum(f), length(f), theta_vals)
+
+marg = sum(priors * lik)
+
+post = (priors*lik)/marg
+
 # coin 4
 
 # number of coin flips
@@ -420,5 +575,15 @@ p_o <- coinFlips(flips,heads,h_f) * p_f +
 # 60% heads
 
 (coinFlips(flips,heads,h_sh) * p_sh)/p_o
+
+# slides method
+
+f <- c(rep(0,0), rep(1,2))
+
+lik = dbinom(sum(f), length(f), theta_vals)
+
+marg = sum(priors * lik)
+
+post = (priors*lik)/marg
 
 #
